@@ -1,0 +1,40 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Client {
+  id        String   @id @default(uuid())
+  userId    String   @unique @map("user_id")
+  name      String
+  email     String
+  phone     String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  subscriptions Subscription[]
+
+  @@map("clients")
+}
+
+model Subscription {
+  id        String           @id @default(uuid())
+  clientId  String           @map("client_id")
+  type      SubscriptionType
+  startDate DateTime         @map("start_date")
+  endDate   DateTime         @map("end_date")
+  isActive  Boolean          @default(true) @map("is_active")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@map("subscriptions")
+}
+
+enum SubscriptionType {
+  monthly
+  yearly
+}
