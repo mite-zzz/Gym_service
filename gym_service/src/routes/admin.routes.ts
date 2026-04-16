@@ -53,6 +53,7 @@ const router = Router();
  */
 router.use(authMiddleware, requireAdmin);
 router.get('/clients', ctrl.getAllClients);
+router.post('/clients', ctrl.createClient);
 router.get('/clients/:id', ctrl.getClientById);
 router.delete('/clients/:id', ctrl.deleteClient);
 router.post('/clients/:id/subscriptions', ctrl.createClientSubscription);

@@ -2,6 +2,23 @@ import { Request, Response, NextFunction } from 'express';
 import * as svc from '../services/client.service';
 import { createSubscriptionForClient } from '../services/subscription.service';
 
+export async function createClient(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { userId, name, email, phone } = req.body;
+    if (!userId || !name || !email) {
+      res.status(400).json({ message: 'userId, name and email are required' });
+      return;
+    }
+    const existing = await svc.getClientByUserId(userId);
+    if (existing) {
+      res.status(409).json({ message: 'Client profile already exists for this user' });
+      return;
+    }
+    const client = await svc.createClient(userId, { name, email, phone });
+    res.status(201).json(client);
+  } catch (e) { next(e); }
+}
+
 export async function getAllClients(req: Request, res: Response, next: NextFunction) {
   try {
     const clients = await svc.getAllClients();
