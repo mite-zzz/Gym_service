@@ -71,3 +71,24 @@ export async function deleteSubscription(userId: string, id: string) {
   if (!sub) throw new Error('Subscription not found or access denied');
   return prisma.subscription.delete({ where: { id } });
 }
+
+export async function createSubscriptionForClient(
+  clientId: string,
+  data: { type: SubscriptionType; startDate: Date },
+) {
+  const client = await prisma.client.findUnique({ where: { id: clientId } });
+  if (!client) throw new Error('Client not found');
+
+  const endDate = calcEndDate(data.startDate, data.type);
+
+  const sub = await prisma.subscription.create({
+    data: {
+      clientId: client.id,
+      type: data.type,
+      startDate: data.startDate,
+      endDate,
+      isActive: isActive(endDate),
+    },
+  });
+  return withActiveStatus(sub);
+}

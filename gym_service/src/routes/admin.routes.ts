@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { authMiddleware, requireAdmin } from '../middlewares/auth.middleware';
 import * as ctrl from '../controllers/admin.controller';
 
+
 const router = Router();
 
 /**
@@ -54,5 +55,6 @@ router.use(authMiddleware, requireAdmin);
 router.get('/clients', ctrl.getAllClients);
 router.get('/clients/:id', ctrl.getClientById);
 router.delete('/clients/:id', ctrl.deleteClient);
+router.post('/clients/:id/subscriptions', ctrl.createClientSubscription);
 
 export default router;
