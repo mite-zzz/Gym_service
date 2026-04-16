@@ -9,12 +9,14 @@ export async function getMy(req: Request, res: Response, next: NextFunction) {
 
 export async function create(req: Request, res: Response, next: NextFunction) {
   try {
-    const { type, startDate, endDate, isActive } = req.body;
+    const { type, startDate } = req.body;
+    if (!type || !startDate) {
+      res.status(400).json({ message: 'type and startDate are required' });
+      return;
+    }
     const sub = await svc.createSubscription(req.user!.sub, {
       type,
       startDate: new Date(startDate),
-      endDate: new Date(endDate),
-      isActive,
     });
     res.status(201).json(sub);
   } catch (e: any) {
@@ -25,12 +27,10 @@ export async function create(req: Request, res: Response, next: NextFunction) {
 
 export async function update(req: Request, res: Response, next: NextFunction) {
   try {
-    const { type, startDate, endDate, isActive } = req.body;
+    const { type, startDate } = req.body;
     const sub = await svc.updateSubscription(req.user!.sub, req.params.id, {
       type,
       startDate: startDate ? new Date(startDate) : undefined,
-      endDate: endDate ? new Date(endDate) : undefined,
-      isActive,
     });
     res.json(sub);
   } catch (e: any) {
