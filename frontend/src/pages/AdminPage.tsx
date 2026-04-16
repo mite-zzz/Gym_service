@@ -1,7 +1,14 @@
 import { useEffect, useState } from 'react';
 import Navbar from '../components/Navbar';
-import { adminGetAllClients, adminDeleteClient, adminCreateSubscription, ClientWithSubscriptions } from '../api/gym';
-import { SubscriptionType } from '../api/gym';
+import { adminGetAllClients, adminDeleteClient, adminCreateSubscription, adminCreateClient, ClientWithSubscriptions, SubscriptionType } from '../api/gym';
+import { register } from '../api/auth';
+
+interface CreateUserForm {
+  name: string;
+  email: string;
+  password: string;
+  role: 'client' | 'admin';
+}
 
 export default function AdminPage() {
   const [clients, setClients] = useState<ClientWithSubscriptions[]>([]);
@@ -15,6 +22,12 @@ export default function AdminPage() {
   const [subSaving, setSubSaving] = useState(false);
   const [subError, setSubError] = useState('');
   const [subSuccess, setSubSuccess] = useState('');
+
+  const [showCreateUser, setShowCreateUser] = useState(false);
+  const [userForm, setUserForm] = useState<CreateUserForm>({ name: '', email: '', password: '', role: 'client' });
+  const [userSaving, setUserSaving] = useState(false);
+  const [userError, setUserError] = useState('');
+  const [userSuccess, setUserSuccess] = useState('');
 
   const load = () => {
     setLoading(true);
@@ -67,6 +80,34 @@ export default function AdminPage() {
     }
   };
 
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setUserSaving(true);
+    setUserError('');
+    setUserSuccess('');
+    try {
+      const regRes = await register(userForm);
+      const userId: string = regRes.data?.data?.user?.id ?? regRes.data?.data?.id ?? regRes.data?.id;
+      if (userId && userForm.role === 'client') {
+        try {
+          await adminCreateClient({ userId, name: userForm.name, email: userForm.email });
+        } catch {
+        }
+      }
+      setUserSuccess(`User "${userForm.email}" registered successfully`);
+      setUserForm({ name: '', email: '', password: '', role: 'client' });
+      setTimeout(() => {
+        setShowCreateUser(false);
+        setUserSuccess('');
+        load();
+      }, 1500);
+    } catch (e: any) {
+      setUserError(e.response?.data?.message ?? e.response?.data?.error ?? 'Failed to create user');
+    } finally {
+      setUserSaving(false);
+    }
+  };
+
   const filtered = clients.filter(
     (c) =>
       c.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -89,12 +130,20 @@ export default function AdminPage() {
             <h1 className="text-2xl font-bold text-gray-800">Admin Panel</h1>
             <p className="text-gray-400 text-sm mt-1">Manage gym clients and subscriptions</p>
           </div>
-          <button
-            onClick={load}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition shadow-sm"
-          >
-            Refresh
-          </button>
+          <div className="flex gap-3">
+            <button
+              onClick={() => { setShowCreateUser(true); setUserError(''); setUserSuccess(''); }}
+              className="flex items-center gap-2 px-4 py-2 bg-pink-500 text-white rounded-xl text-sm font-medium hover:bg-pink-600 transition shadow-sm"
+            >
+              + New user
+            </button>
+            <button
+              onClick={load}
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition shadow-sm"
+            >
+              Refresh
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-3 gap-4">
@@ -178,13 +227,26 @@ export default function AdminPage() {
                             {new Date(client.createdAt).toLocaleDateString()}
                           </td>
                           <td className="px-4 py-3 text-center">
-                            <button
-                              onClick={(e) => { e.stopPropagation(); handleDelete(client.id, client.name); }}
-                              disabled={deletingId === client.id}
-                              className="px-3 py-1.5 bg-red-100 text-red-600 rounded-lg text-xs font-medium hover:bg-red-200 transition disabled:opacity-50"
-                            >
-                              {deletingId === client.id ? '...' : 'Delete'}
-                            </button>
+                            <div className="flex items-center justify-center gap-2">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedClient(isSelected ? null : client);
+                                  setSubError(''); setSubSuccess('');
+                                  setSubForm({ type: 'monthly', startDate: '' });
+                                }}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${isSelected ? 'bg-pink-200 text-pink-700' : 'bg-pink-100 text-pink-600 hover:bg-pink-200'}`}
+                              >
+                                {isSelected ? 'Close' : 'Manage'}
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleDelete(client.id, client.name); }}
+                                disabled={deletingId === client.id}
+                                className="px-3 py-1.5 bg-red-100 text-red-600 rounded-lg text-xs font-medium hover:bg-red-200 transition disabled:opacity-50"
+                              >
+                                {deletingId === client.id ? '...' : 'Delete'}
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -198,7 +260,7 @@ export default function AdminPage() {
               <div className="w-80 bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-5 self-start">
                 <div className="flex items-center justify-between">
                   <h3 className="font-semibold text-gray-800">{selectedClient.name}</h3>
-                  <button onClick={() => setSelectedClient(null)} className="text-gray-400 hover:text-gray-600 text-lg leading-none">✕</button>
+                  <button onClick={() => setSelectedClient(null)} className="text-gray-400 hover:text-gray-600 text-lg leading-none">x</button>
                 </div>
 
                 <div className="space-y-2 text-sm">
@@ -294,6 +356,90 @@ export default function AdminPage() {
           </div>
         )}
       </div>
+
+      {showCreateUser && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-5">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-gray-800">Create new user</h2>
+              <button
+                onClick={() => setShowCreateUser(false)}
+                className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+              >
+                x
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateUser} className="space-y-4">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Full name</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ivan Ivanov"
+                  value={userForm.name}
+                  onChange={(e) => setUserForm({ ...userForm, name: e.target.value })}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-pink-300"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Email</label>
+                <input
+                  type="email"
+                  required
+                  placeholder="user@example.com"
+                  value={userForm.email}
+                  onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-pink-300"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Password</label>
+                <input
+                  type="password"
+                  required
+                  minLength={6}
+                  placeholder="min 6 characters"
+                  value={userForm.password}
+                  onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-pink-300"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Role</label>
+                <select
+                  value={userForm.role}
+                  onChange={(e) => setUserForm({ ...userForm, role: e.target.value as 'client' | 'admin' })}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-pink-300"
+                >
+                  <option value="client">Client</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+
+              {userError && <p className="text-red-400 text-sm">{userError}</p>}
+              {userSuccess && <p className="text-green-500 text-sm">{userSuccess}</p>}
+
+              <div className="flex gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateUser(false)}
+                  className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm hover:bg-gray-50 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={userSaving}
+                  className="flex-1 py-2.5 bg-gradient-to-r from-pink-400 to-pink-500 text-white rounded-xl text-sm font-medium hover:opacity-90 transition disabled:opacity-50"
+                >
+                  {userSaving ? 'Creating...' : 'Create'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
