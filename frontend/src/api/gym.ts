@@ -45,3 +45,5 @@ export interface ClientWithSubscriptions extends Client {
 export const adminGetAllClients = () => gymApi.get<ClientWithSubscriptions[]>('/admin/clients');
 export const adminGetClient = (id: string) => gymApi.get<ClientWithSubscriptions>(`/admin/clients/${id}`);
 export const adminDeleteClient = (id: string) => gymApi.delete(`/admin/clients/${id}`);
+export const adminCreateSubscription = (clientId: string, data: { type: SubscriptionType; startDate: string }) =>
+  gymApi.post<Subscription>(`/admin/clients/${clientId}/subscriptions`, data);
