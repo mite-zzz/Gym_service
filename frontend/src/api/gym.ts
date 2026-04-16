@@ -33,9 +33,9 @@ export const createProfile = (data: Partial<Client>) => gymApi.post<Client>('/cl
 export const updateProfile = (data: Partial<Client>) => gymApi.put<Client>('/clients/me', data);
 
 export const getMySubscriptions = () => gymApi.get<Subscription[]>('/subscriptions/my');
-export const createSubscription = (data: Omit<Subscription, 'id' | 'clientId'>) =>
+export const createSubscription = (data: { type: SubscriptionType; startDate: string }) =>
   gymApi.post<Subscription>('/subscriptions', data);
-export const updateSubscription = (id: string, data: Partial<Subscription>) =>
+export const updateSubscription = (id: string, data: { type?: SubscriptionType; startDate?: string }) =>
   gymApi.put<Subscription>(`/subscriptions/${id}`, data);
 export const deleteSubscription = (id: string) => gymApi.delete(`/subscriptions/${id}`);
 
