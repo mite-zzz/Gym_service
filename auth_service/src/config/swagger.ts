@@ -1,18 +1,14 @@
 import swaggerJsdoc from 'swagger-jsdoc';
 import { env } from './env';
 
-// ─────────────────────────────────────────────
-//  Swagger / OpenAPI 3.0 Configuration
-// ─────────────────────────────────────────────
-
 const options: swaggerJsdoc.Options = {
   definition: {
     openapi: '3.0.3',
     info: {
-      title: '🏋️ Gym Management — Auth Service',
+      title: 'Gym Management — Auth Service',
       version: '1.0.0',
       description:
-        'Production-ready authentication microservice for the Gym Management System. ' +
+        'Authentication microservice for the Gym Management System. ' +
         'Handles user registration, login, JWT token issuance, and identity verification.',
       contact: {
         name: 'API Support',
@@ -43,7 +39,6 @@ const options: swaggerJsdoc.Options = {
         },
       },
       schemas: {
-        // ── Request Bodies ──────────────────────────────────
         RegisterRequest: {
           type: 'object',
           required: ['email', 'password', 'name', 'role'],
@@ -90,8 +85,6 @@ const options: swaggerJsdoc.Options = {
             },
           },
         },
-
-        // ── Response Schemas ─────────────────────────────────
         UserResponse: {
           type: 'object',
           properties: {
@@ -115,8 +108,6 @@ const options: swaggerJsdoc.Options = {
             user: { $ref: '#/components/schemas/UserResponse' },
           },
         },
-
-        // ── Error Schemas ─────────────────────────────────────
         ErrorResponse: {
           type: 'object',
           properties: {

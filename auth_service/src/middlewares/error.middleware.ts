@@ -4,10 +4,6 @@ import { AppError } from '../utils/AppError';
 import { logger } from '../utils/logger';
 import { env } from '../config/env';
 
-// ─────────────────────────────────────────────
-//  Global Error Handling Middleware
-// ─────────────────────────────────────────────
-
 interface ErrorResponse {
   success: false;
   error: {
@@ -18,13 +14,9 @@ interface ErrorResponse {
   };
 }
 
-/**
- * Converts known Prisma errors to structured AppErrors.
- */
 function handlePrismaError(err: Prisma.PrismaClientKnownRequestError): AppError {
   switch (err.code) {
     case 'P2002': {
-      // Unique constraint violation
       const fields = (err.meta?.target as string[]) ?? ['field'];
       return AppError.conflict(
         `A record with this ${fields.join(', ')} already exists.`,
@@ -40,10 +32,6 @@ function handlePrismaError(err: Prisma.PrismaClientKnownRequestError): AppError 
   }
 }
 
-/**
- * Express global error handler.
- * Must be registered LAST, after all routes.
- */
 export function errorHandler(
   err: Error,
   req: Request,
@@ -51,7 +39,6 @@ export function errorHandler(
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _next: NextFunction,
 ): void {
-  // ── Normalize to AppError ──────────────────
   let appError: AppError;
 
   if (err instanceof AppError) {
@@ -61,10 +48,8 @@ export function errorHandler(
   } else if (err instanceof Prisma.PrismaClientValidationError) {
     appError = AppError.badRequest('Invalid data supplied to the database.');
   } else if (err instanceof SyntaxError && 'body' in err) {
-    // Malformed JSON body
     appError = AppError.badRequest('Malformed JSON in request body.');
   } else {
-    // Unknown / unexpected error
     logger.error('Unexpected error', {
       message: err.message,
       stack: err.stack,
@@ -74,7 +59,6 @@ export function errorHandler(
     appError = AppError.internal();
   }
 
-  // ── Log operational errors at warn, programmer errors at error ──
   if (appError.isOperational) {
     logger.warn('Operational error', {
       code: appError.code,
@@ -90,7 +74,6 @@ export function errorHandler(
     });
   }
 
-  // ── Build response ─────────────────────────
   const body: ErrorResponse = {
     success: false,
     error: {
@@ -104,9 +87,6 @@ export function errorHandler(
   res.status(appError.statusCode).json(body);
 }
 
-/**
- * 404 handler — catches requests to undefined routes.
- */
 export function notFoundHandler(req: Request, _res: Response, next: NextFunction): void {
   next(AppError.notFound(`Route ${req.method} ${req.originalUrl}`));
 }

@@ -1,7 +1,3 @@
-// ─────────────────────────────────────────────
-//  AppError — Structured Application Error
-// ─────────────────────────────────────────────
-
 export type ErrorCode =
   | 'VALIDATION_ERROR'
   | 'UNAUTHORIZED'
@@ -35,12 +31,9 @@ export class AppError extends Error {
     this.isOperational = true;
     this.details = details;
 
-    // Maintains proper prototype chain in transpiled TS
     Object.setPrototypeOf(this, AppError.prototype);
     Error.captureStackTrace(this, this.constructor);
   }
-
-  // ── Static Factories ────────────────────────
 
   static badRequest(message: string, details?: ValidationDetail[]): AppError {
     return new AppError(message, 400, 'BAD_REQUEST', details);

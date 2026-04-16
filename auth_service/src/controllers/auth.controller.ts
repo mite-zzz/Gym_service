@@ -3,11 +3,6 @@ import { authService } from '../services/auth.service';
 import { sendSuccess, sendCreated } from '../utils/response';
 import type { RegisterDto, LoginDto } from '../middlewares/validation.middleware';
 
-// ─────────────────────────────────────────────
-//  Auth Controller
-//  Thin layer: delegates to service, formats response.
-// ─────────────────────────────────────────────
-
 /**
  * @openapi
  * /auth/register:
@@ -15,9 +10,6 @@ import type { RegisterDto, LoginDto } from '../middlewares/validation.middleware
  *     tags:
  *       - Auth
  *     summary: Register a new user
- *     description: >
- *       Creates a new user account. Returns a JWT access token upon
- *       successful registration so the client can authenticate immediately.
  *     requestBody:
  *       required: true
  *       content:
@@ -84,9 +76,6 @@ export async function register(
  *     tags:
  *       - Auth
  *     summary: Login with email and password
- *     description: >
- *       Authenticates an existing user. Returns a JWT access token
- *       to be used in subsequent protected requests.
  *     requestBody:
  *       required: true
  *       content:
@@ -141,9 +130,6 @@ export async function login(
  *     tags:
  *       - Users
  *     summary: Get the current authenticated user
- *     description: >
- *       Returns the profile of the currently authenticated user,
- *       derived from the JWT token. Password is never returned.
  *     security:
  *       - BearerAuth: []
  *     responses:
@@ -177,7 +163,6 @@ export async function getMe(
   next: NextFunction,
 ): Promise<void> {
   try {
-    // req.user is guaranteed by the authenticate middleware
     const user = await authService.getMe(req.user!.sub);
     sendSuccess(res, user);
   } catch (err) {

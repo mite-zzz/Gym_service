@@ -6,10 +6,6 @@ import { AppError } from '../utils/AppError';
 import { env } from '../config/env';
 import type { RegisterDto, LoginDto } from '../middlewares/validation.middleware';
 
-// ─────────────────────────────────────────────
-//  Auth Service — Business Logic
-// ─────────────────────────────────────────────
-
 export interface AuthResult {
   accessToken: string;
   tokenType: 'Bearer';
@@ -17,17 +13,9 @@ export interface AuthResult {
   user: SafeUser;
 }
 
-/** User object without the sensitive password field */
 export type SafeUser = Omit<User, 'password'>;
 
 class AuthService {
-  /**
-   * Registers a new user.
-   *  1. Checks email uniqueness
-   *  2. Hashes the password
-   *  3. Persists the user
-   *  4. Returns a signed JWT + user profile (no password)
-   */
   async register(dto: RegisterDto): Promise<AuthResult> {
     const emailTaken = await userRepository.existsByEmail(dto.email);
     if (emailTaken) {
@@ -59,16 +47,9 @@ class AuthService {
     };
   }
 
-  /**
-   * Authenticates an existing user.
-   *  1. Looks up the user by email
-   *  2. Compares the provided password against the stored hash
-   *  3. Returns a signed JWT + user profile (no password)
-   */
   async login(dto: LoginDto): Promise<AuthResult> {
     const user = await userRepository.findByEmail(dto.email);
 
-    // Use constant-time comparison message to prevent user enumeration
     if (!user) {
       throw AppError.unauthorized('Invalid email or password.');
     }
@@ -92,9 +73,6 @@ class AuthService {
     };
   }
 
-  /**
-   * Retrieves the currently authenticated user's profile.
-   */
   async getMe(userId: string): Promise<SafeUser> {
     const user = await userRepository.findById(userId);
     if (!user) {
@@ -103,10 +81,6 @@ class AuthService {
     return this.sanitize(user);
   }
 
-  /**
-   * Strips the password field from a User record before returning
-   * it to the client.
-   */
   private sanitize(user: User): SafeUser {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { password, ...safeUser } = user;

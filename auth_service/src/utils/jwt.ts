@@ -2,21 +2,14 @@ import jwt from 'jsonwebtoken';
 import { env } from '../config/env';
 import { AppError } from './AppError';
 
-// ─────────────────────────────────────────────
-//  JWT Utilities
-// ─────────────────────────────────────────────
-
 export interface JwtPayload {
-  sub: string;      // User ID
+  sub: string;
   email: string;
   role: string;
   iat?: number;
   exp?: number;
 }
 
-/**
- * Signs a JWT token with the user's identity claims.
- */
 export function signToken(payload: Omit<JwtPayload, 'iat' | 'exp'>): string {
   return jwt.sign(payload, env.JWT_SECRET, {
     expiresIn: env.JWT_EXPIRES_IN,
@@ -25,10 +18,6 @@ export function signToken(payload: Omit<JwtPayload, 'iat' | 'exp'>): string {
   } as jwt.SignOptions);
 }
 
-/**
- * Verifies and decodes a JWT token.
- * Throws an AppError for any verification failure.
- */
 export function verifyToken(token: string): JwtPayload {
   try {
     return jwt.verify(token, env.JWT_SECRET, {
@@ -46,10 +35,6 @@ export function verifyToken(token: string): JwtPayload {
   }
 }
 
-/**
- * Extracts a Bearer token from an Authorization header value.
- * Returns null if the header is missing or malformed.
- */
 export function extractBearerToken(authHeader?: string): string | null {
   if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
   const token = authHeader.slice(7).trim();

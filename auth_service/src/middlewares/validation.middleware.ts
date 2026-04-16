@@ -2,10 +2,6 @@ import { Request, Response, NextFunction } from 'express';
 import { z, ZodSchema, ZodError } from 'zod';
 import { AppError } from '../utils/AppError';
 
-// ─────────────────────────────────────────────
-//  Zod Validation Schemas
-// ─────────────────────────────────────────────
-
 export const registerSchema = z.object({
   email: z
     .string({ required_error: 'Email is required' })
@@ -43,15 +39,6 @@ export const loginSchema = z.object({
 export type RegisterDto = z.infer<typeof registerSchema>;
 export type LoginDto = z.infer<typeof loginSchema>;
 
-// ─────────────────────────────────────────────
-//  Validation Middleware Factory
-// ─────────────────────────────────────────────
-
-/**
- * Returns an Express middleware that validates `req.body` against
- * the provided Zod schema. Attaches the parsed (sanitized) value
- * back to `req.body` so downstream handlers receive clean data.
- */
 export function validate<T>(schema: ZodSchema<T>) {
   return (req: Request, _res: Response, next: NextFunction): void => {
     try {
