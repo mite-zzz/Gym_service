@@ -16,7 +16,9 @@ services:
       PORT: 3000
       DATABASE_URL: postgresql://gym_user:gym_password@auth-postgres:5432/gym_auth_db?schema=public
       JWT_SECRET: your-super-secret-jwt-key-change-this-in-production-min-32-chars
-      JWT_EXPIRES_IN: 7d
+      JWT_EXPIRES_IN: 15m
+      REFRESH_TOKEN_SECRET: your-refresh-token-secret-key-change-this-in-production-min-32-chars
+      REFRESH_TOKEN_EXPIRES_IN: 30d
       BCRYPT_SALT_ROUNDS: 12
       CORS_ORIGINS: http://localhost:80,http://localhost
     ports:

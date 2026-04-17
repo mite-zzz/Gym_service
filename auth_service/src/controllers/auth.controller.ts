@@ -10,6 +10,7 @@ import type { RegisterDto, LoginDto } from '../middlewares/validation.middleware
  *     tags:
  *       - Auth
  *     summary: Register a new user
+ *     description: Creates a new user account and returns an access token (15 min) and a refresh token (30 days).
  *     requestBody:
  *       required: true
  *       content:
@@ -28,7 +29,7 @@ import type { RegisterDto, LoginDto } from '../middlewares/validation.middleware
  *               summary: Register an admin
  *               value:
  *                 email: admin@gymapp.io
- *                 password: Adm1nP@ss!
+ *                 password: Adm1nP@ss1
  *                 name: Gym Admin
  *                 role: admin
  *     responses:
@@ -76,6 +77,7 @@ export async function register(
  *     tags:
  *       - Auth
  *     summary: Login with email and password
+ *     description: Returns an access token (15 min) and a refresh token (30 days). Use the access token in the Authorization header for protected requests. When it expires, call /auth/refresh with the refresh token.
  *     requestBody:
  *       required: true
  *       content:
@@ -125,11 +127,111 @@ export async function login(
 
 /**
  * @openapi
+ * /auth/refresh:
+ *   post:
+ *     tags:
+ *       - Auth
+ *     summary: Refresh access token
+ *     description: Exchange a valid refresh token for a new access token and a new refresh token. The old refresh token is invalidated after this call.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/RefreshRequest'
+ *           example:
+ *             refreshToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *     responses:
+ *       '200':
+ *         description: New token pair issued
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/SuccessResponse'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       $ref: '#/components/schemas/TokenPairResponse'
+ *       '401':
+ *         description: Invalid or expired refresh token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+export async function refresh(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const { refreshToken } = req.body;
+    if (!refreshToken || typeof refreshToken !== 'string') {
+      res.status(400).json({ success: false, error: { code: 'BAD_REQUEST', message: 'refreshToken is required' } });
+      return;
+    }
+    const tokens = await authService.refresh(refreshToken);
+    sendSuccess(res, tokens);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * @openapi
+ * /auth/logout:
+ *   post:
+ *     tags:
+ *       - Auth
+ *     summary: Logout — invalidate refresh token
+ *     description: Clears the stored refresh token for the current user. After this call the refresh token can no longer be used to obtain new access tokens.
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       '200':
+ *         description: Logged out successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/SuccessResponse'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       type: object
+ *                       properties:
+ *                         message:
+ *                           type: string
+ *                           example: Logged out successfully
+ *       '401':
+ *         description: Missing or invalid access token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+export async function logout(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    await authService.logout(req.user!.sub);
+    sendSuccess(res, { message: 'Logged out successfully' });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * @openapi
  * /auth/me:
  *   get:
  *     tags:
  *       - Users
- *     summary: Get the current authenticated user
+ *     summary: Get current user profile
+ *     description: Returns the profile of the currently authenticated user. Requires a valid access token in the Authorization header.
  *     security:
  *       - BearerAuth: []
  *     responses:

@@ -22,7 +22,11 @@ const envSchema = z.object({
   JWT_SECRET: z
     .string()
     .min(32, { message: 'JWT_SECRET must be at least 32 characters for security' }),
-  JWT_EXPIRES_IN: z.string().default('7d'),
+  JWT_EXPIRES_IN: z.string().default('15m'),
+  REFRESH_TOKEN_SECRET: z
+    .string()
+    .min(32, { message: 'REFRESH_TOKEN_SECRET must be at least 32 characters' }),
+  REFRESH_TOKEN_EXPIRES_IN: z.string().default('30d'),
   BCRYPT_SALT_ROUNDS: z
     .string()
     .default('12')
