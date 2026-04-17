@@ -16,7 +16,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const res = await login(form);
-      await authLogin(res.data.data.accessToken);
+      await authLogin(res.data.data.accessToken, res.data.data.refreshToken);
       navigate('/dashboard');
     } catch (e: any) {
       setError(e.response?.data?.message ?? 'Login failed');

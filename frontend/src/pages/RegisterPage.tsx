@@ -17,7 +17,7 @@ export default function RegisterPage() {
     try {
       await register(form);
       const res = await login({ email: form.email, password: form.password });
-      await authLogin(res.data.data.accessToken);
+      await authLogin(res.data.data.accessToken, res.data.data.refreshToken);
       navigate('/dashboard');
     } catch (e: any) {
       setError(e.response?.data?.message ?? 'Registration failed');
