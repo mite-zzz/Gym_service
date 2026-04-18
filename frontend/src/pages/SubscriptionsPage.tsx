@@ -1,34 +1,29 @@
 import { useEffect, useState } from 'react';
+import { observer } from 'mobx-react-lite';
 import Navbar from '../components/Navbar';
 import { useAuth } from '../context/AuthContext';
-import {
-  getMySubscriptions, createSubscription, updateSubscription,
-  deleteSubscription, Subscription, SubscriptionType,
-} from '../api/gym';
+import { useStore } from '../stores/RootStore';
+import { SubscriptionType, Subscription } from '../api/gym';
 
 const BADGE: Record<SubscriptionType, string> = {
   monthly: 'bg-pink-100 text-pink-600',
   yearly: 'bg-purple-100 text-purple-600',
 };
 
-export default function SubscriptionsPage() {
+const SubscriptionsPage = observer(() => {
   const { user } = useAuth();
+  const { client } = useStore();
   const isAdmin = user?.role === 'admin';
 
-  const [subs, setSubs] = useState<Subscription[]>([]);
-  const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ type: 'monthly' as SubscriptionType, startDate: '' });
   const [saving, setSaving] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [error, setError] = useState('');
 
-  const load = () =>
-    getMySubscriptions()
-      .then((r) => setSubs(r.data))
-      .finally(() => setLoading(false));
-
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    client.loadSubscriptions();
+  }, []);
 
   const resetForm = () => {
     setForm({ type: 'monthly', startDate: '' });
@@ -38,10 +33,7 @@ export default function SubscriptionsPage() {
   };
 
   const handleEdit = (s: Subscription) => {
-    setForm({
-      type: s.type,
-      startDate: s.startDate.slice(0, 10),
-    });
+    setForm({ type: s.type, startDate: s.startDate.slice(0, 10) });
     setEditId(s.id);
     setShowForm(true);
   };
@@ -51,16 +43,12 @@ export default function SubscriptionsPage() {
     setSaving(true);
     setError('');
     try {
-      const payload = {
-        type: form.type,
-        startDate: new Date(form.startDate).toISOString(),
-      };
+      const payload = { type: form.type, startDate: new Date(form.startDate).toISOString() };
       if (editId) {
-        await updateSubscription(editId, payload);
+        await client.editSubscription(editId, payload);
       } else {
-        await createSubscription(payload);
+        await client.addSubscription(payload);
       }
-      await load();
       resetForm();
     } catch (e: any) {
       setError(e.response?.data?.message ?? 'Error');
@@ -71,8 +59,7 @@ export default function SubscriptionsPage() {
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this subscription?')) return;
-    await deleteSubscription(id);
-    setSubs((prev) => prev.filter((s) => s.id !== id));
+    await client.removeSubscription(id);
   };
 
   return (
@@ -127,9 +114,7 @@ export default function SubscriptionsPage() {
                   onChange={(e) => setForm({ ...form, startDate: e.target.value })}
                   className="w-full border border-pink-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-pink-300 text-sm"
                 />
-                <p className="text-xs text-gray-400 mt-1">
-                  End date will be calculated automatically based on type
-                </p>
+                <p className="text-xs text-gray-400 mt-1">End date is calculated automatically</p>
               </div>
               {error && <p className="text-red-400 text-sm">{error}</p>}
               <div className="flex gap-3">
@@ -147,15 +132,15 @@ export default function SubscriptionsPage() {
           </div>
         )}
 
-        {loading ? (
+        {client.subscriptionsLoading ? (
           <p className="text-pink-400 animate-pulse">Loading...</p>
-        ) : subs.length === 0 ? (
+        ) : client.subscriptions.length === 0 ? (
           <div className="bg-white rounded-2xl shadow-sm shadow-pink-100 p-10 text-center border border-pink-50">
             <p className="text-gray-400">No subscriptions yet.{!isAdmin && ' Create your first one!'}</p>
           </div>
         ) : (
           <div className="space-y-3">
-            {subs.map((s) => {
+            {client.subscriptions.map((s) => {
               const active = new Date() <= new Date(s.endDate);
               return (
                 <div key={s.id} className="bg-white rounded-2xl shadow-sm shadow-pink-100 p-4 border border-pink-50">
@@ -198,4 +183,6 @@ export default function SubscriptionsPage() {
       </div>
     </div>
   );
-}
+});
+
+export default SubscriptionsPage;

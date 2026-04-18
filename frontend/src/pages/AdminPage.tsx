@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
+import { observer } from 'mobx-react-lite';
 import Navbar from '../components/Navbar';
-import { adminGetAllClients, adminDeleteClient, adminCreateSubscription, adminCreateClient, ClientWithSubscriptions, SubscriptionType } from '../api/gym';
-import { register } from '../api/auth';
+import { useStore } from '../stores/RootStore';
+import { ClientWithSubscriptions, SubscriptionType } from '../api/gym';
 
 interface CreateUserForm {
   name: string;
@@ -10,11 +11,9 @@ interface CreateUserForm {
   role: 'client' | 'admin';
 }
 
-export default function AdminPage() {
-  const [clients, setClients] = useState<ClientWithSubscriptions[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+const AdminPage = observer(() => {
+  const { admin } = useStore();
+
   const [selectedClient, setSelectedClient] = useState<ClientWithSubscriptions | null>(null);
   const [search, setSearch] = useState('');
 
@@ -29,33 +28,28 @@ export default function AdminPage() {
   const [userError, setUserError] = useState('');
   const [userSuccess, setUserSuccess] = useState('');
 
-  const load = () => {
-    setLoading(true);
-    adminGetAllClients()
-      .then((res) => {
-        setClients(res.data);
-        if (selectedClient) {
-          const updated = res.data.find((c) => c.id === selectedClient.id);
-          if (updated) setSelectedClient(updated);
-        }
-      })
-      .catch(() => setError('Failed to load clients'))
-      .finally(() => setLoading(false));
-  };
+  useEffect(() => { admin.loadClients(); }, []);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    if (selectedClient) {
+      const updated = admin.getClientById(selectedClient.id);
+      if (updated) setSelectedClient(updated);
+    }
+  }, [admin.clients]);
+
+  const filtered = admin.clients.filter(
+    (c) =>
+      c.name.toLowerCase().includes(search.toLowerCase()) ||
+      c.email.toLowerCase().includes(search.toLowerCase()),
+  );
 
   const handleDelete = async (id: string, name: string) => {
     if (!confirm(`Delete client "${name}" and all their subscriptions?`)) return;
-    setDeletingId(id);
     try {
-      await adminDeleteClient(id);
-      setClients((prev) => prev.filter((c) => c.id !== id));
+      await admin.deleteClient(id);
       if (selectedClient?.id === id) setSelectedClient(null);
     } catch {
       alert('Failed to delete client');
-    } finally {
-      setDeletingId(null);
     }
   };
 
@@ -66,15 +60,15 @@ export default function AdminPage() {
     setSubError('');
     setSubSuccess('');
     try {
-      await adminCreateSubscription(selectedClient.id, {
+      await admin.createSubscriptionForClient(selectedClient.id, {
         type: subForm.type,
         startDate: new Date(subForm.startDate).toISOString(),
       });
       setSubSuccess('Subscription created successfully');
       setSubForm({ type: 'monthly', startDate: '' });
-      load();
     } catch (e: any) {
-      setSubError(e.response?.data?.message ?? 'Failed to create subscription');
+      const d = e.response?.data;
+      setSubError(d?.error?.message ?? d?.message ?? 'Failed to create subscription');
     } finally {
       setSubSaving(false);
     }
@@ -86,43 +80,21 @@ export default function AdminPage() {
     setUserError('');
     setUserSuccess('');
     try {
-      const regRes = await register(userForm);
-      const userId: string = regRes.data?.data?.user?.id ?? regRes.data?.data?.id ?? regRes.data?.id;
-      if (userId && userForm.role === 'client') {
-        try {
-          await adminCreateClient({ userId, name: userForm.name, email: userForm.email });
-        } catch {
-        }
-      }
+      await admin.createUser(userForm);
       setUserSuccess(`User "${userForm.email}" registered successfully`);
       setUserForm({ name: '', email: '', password: '', role: 'client' });
-      setTimeout(() => {
-        setShowCreateUser(false);
-        setUserSuccess('');
-        load();
-      }, 1500);
+      setTimeout(() => { setShowCreateUser(false); setUserSuccess(''); }, 1500);
     } catch (e: any) {
-      setUserError(e.response?.data?.message ?? e.response?.data?.error ?? 'Failed to create user');
+      const d = e.response?.data;
+      setUserError(d?.error?.message ?? d?.message ?? 'Failed to create user');
     } finally {
       setUserSaving(false);
     }
   };
 
-  const filtered = clients.filter(
-    (c) =>
-      c.name.toLowerCase().includes(search.toLowerCase()) ||
-      c.email.toLowerCase().includes(search.toLowerCase()),
-  );
-
-  const totalActive = clients.reduce(
-    (acc, c) => acc + c.subscriptions.filter((s) => new Date() <= new Date(s.endDate)).length,
-    0,
-  );
-
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
-
       <div className="max-w-6xl mx-auto p-6 space-y-6">
 
         <div className="flex items-center justify-between">
@@ -138,7 +110,7 @@ export default function AdminPage() {
               + New user
             </button>
             <button
-              onClick={load}
+              onClick={() => admin.loadClients(true)}
               className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition shadow-sm"
             >
               Refresh
@@ -149,17 +121,15 @@ export default function AdminPage() {
         <div className="grid grid-cols-3 gap-4">
           <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
             <p className="text-xs text-gray-400 uppercase font-medium mb-1">Total clients</p>
-            <p className="text-3xl font-bold text-gray-800">{clients.length}</p>
+            <p className="text-3xl font-bold text-gray-800">{admin.totalClients}</p>
           </div>
           <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
             <p className="text-xs text-gray-400 uppercase font-medium mb-1">Active subscriptions</p>
-            <p className="text-3xl font-bold text-green-600">{totalActive}</p>
+            <p className="text-3xl font-bold text-green-600">{admin.totalActiveSubscriptions}</p>
           </div>
           <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
             <p className="text-xs text-gray-400 uppercase font-medium mb-1">No subscription</p>
-            <p className="text-3xl font-bold text-orange-500">
-              {clients.filter((c) => c.subscriptions.length === 0).length}
-            </p>
+            <p className="text-3xl font-bold text-orange-500">{admin.clientsWithoutSubscriptions}</p>
           </div>
         </div>
 
@@ -173,10 +143,10 @@ export default function AdminPage() {
           />
         </div>
 
-        {loading && <div className="text-center py-16 text-pink-400 animate-pulse text-lg">Loading...</div>}
-        {error && <div className="bg-red-50 border border-red-200 text-red-600 rounded-2xl p-4 text-sm">{error}</div>}
+        {admin.loading && <div className="text-center py-16 text-pink-400 animate-pulse text-lg">Loading...</div>}
+        {admin.error && <div className="bg-red-50 border border-red-200 text-red-600 rounded-2xl p-4 text-sm">{admin.error}</div>}
 
-        {!loading && !error && (
+        {!admin.loading && !admin.error && (
           <div className="flex gap-6">
             <div className="flex-1 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
               {filtered.length === 0 ? (
@@ -201,12 +171,7 @@ export default function AdminPage() {
                       return (
                         <tr
                           key={client.id}
-                          onClick={() => {
-                            setSelectedClient(isSelected ? null : client);
-                            setSubError('');
-                            setSubSuccess('');
-                            setSubForm({ type: 'monthly', startDate: '' });
-                          }}
+                          onClick={() => { setSelectedClient(isSelected ? null : client); setSubError(''); setSubSuccess(''); setSubForm({ type: 'monthly', startDate: '' }); }}
                           className={`cursor-pointer transition ${isSelected ? 'bg-pink-50' : 'hover:bg-gray-50'}`}
                         >
                           <td className="px-4 py-3">
@@ -216,35 +181,25 @@ export default function AdminPage() {
                           <td className="px-4 py-3 text-gray-500">{client.phone ?? '—'}</td>
                           <td className="px-4 py-3 text-center">
                             {activeSubs > 0 ? (
-                              <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-medium">
-                                {activeSubs} active
-                              </span>
+                              <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-medium">{activeSubs} active</span>
                             ) : (
                               <span className="px-2 py-0.5 bg-gray-100 text-gray-400 rounded-full text-xs">none</span>
                             )}
                           </td>
-                          <td className="px-4 py-3 text-gray-400 text-xs">
-                            {new Date(client.createdAt).toLocaleDateString()}
-                          </td>
+                          <td className="px-4 py-3 text-gray-400 text-xs">{new Date(client.createdAt).toLocaleDateString()}</td>
                           <td className="px-4 py-3 text-center">
                             <div className="flex items-center justify-center gap-2">
                               <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedClient(isSelected ? null : client);
-                                  setSubError(''); setSubSuccess('');
-                                  setSubForm({ type: 'monthly', startDate: '' });
-                                }}
+                                onClick={(e) => { e.stopPropagation(); setSelectedClient(isSelected ? null : client); setSubError(''); setSubSuccess(''); setSubForm({ type: 'monthly', startDate: '' }); }}
                                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${isSelected ? 'bg-pink-200 text-pink-700' : 'bg-pink-100 text-pink-600 hover:bg-pink-200'}`}
                               >
                                 {isSelected ? 'Close' : 'Manage'}
                               </button>
                               <button
                                 onClick={(e) => { e.stopPropagation(); handleDelete(client.id, client.name); }}
-                                disabled={deletingId === client.id}
-                                className="px-3 py-1.5 bg-red-100 text-red-600 rounded-lg text-xs font-medium hover:bg-red-200 transition disabled:opacity-50"
+                                className="px-3 py-1.5 bg-red-100 text-red-600 rounded-lg text-xs font-medium hover:bg-red-200 transition"
                               >
-                                {deletingId === client.id ? '...' : 'Delete'}
+                                Delete
                               </button>
                             </div>
                           </td>
@@ -262,26 +217,14 @@ export default function AdminPage() {
                   <h3 className="font-semibold text-gray-800">{selectedClient.name}</h3>
                   <button onClick={() => setSelectedClient(null)} className="text-gray-400 hover:text-gray-600 text-lg leading-none">x</button>
                 </div>
-
                 <div className="space-y-2 text-sm">
-                  <div className="p-3 bg-gray-50 rounded-xl">
-                    <p className="text-xs text-gray-400">Email</p>
-                    <p className="text-gray-700 break-all">{selectedClient.email}</p>
-                  </div>
-                  <div className="p-3 bg-gray-50 rounded-xl">
-                    <p className="text-xs text-gray-400">Phone</p>
-                    <p className="text-gray-700">{selectedClient.phone ?? '—'}</p>
-                  </div>
-                  <div className="p-3 bg-gray-50 rounded-xl">
-                    <p className="text-xs text-gray-400">Member since</p>
-                    <p className="text-gray-700">{new Date(selectedClient.createdAt).toLocaleDateString()}</p>
-                  </div>
+                  <div className="p-3 bg-gray-50 rounded-xl"><p className="text-xs text-gray-400">Email</p><p className="text-gray-700 break-all">{selectedClient.email}</p></div>
+                  <div className="p-3 bg-gray-50 rounded-xl"><p className="text-xs text-gray-400">Phone</p><p className="text-gray-700">{selectedClient.phone ?? '—'}</p></div>
+                  <div className="p-3 bg-gray-50 rounded-xl"><p className="text-xs text-gray-400">Member since</p><p className="text-gray-700">{new Date(selectedClient.createdAt).toLocaleDateString()}</p></div>
                 </div>
 
                 <div>
-                  <p className="text-xs text-gray-400 uppercase font-medium mb-2">
-                    Subscriptions ({selectedClient.subscriptions.length})
-                  </p>
+                  <p className="text-xs text-gray-400 uppercase font-medium mb-2">Subscriptions ({selectedClient.subscriptions.length})</p>
                   {selectedClient.subscriptions.length === 0 ? (
                     <p className="text-sm text-gray-400">No subscriptions</p>
                   ) : (
@@ -298,9 +241,7 @@ export default function AdminPage() {
                                 {active ? 'Active' : 'Expired'}
                               </span>
                             </div>
-                            <p className="text-gray-500">
-                              {new Date(sub.startDate).toLocaleDateString()} — {new Date(sub.endDate).toLocaleDateString()}
-                            </p>
+                            <p className="text-gray-500">{new Date(sub.startDate).toLocaleDateString()} — {new Date(sub.endDate).toLocaleDateString()}</p>
                           </div>
                         );
                       })}
@@ -311,34 +252,23 @@ export default function AdminPage() {
                 <div className="border-t border-gray-100 pt-4">
                   <p className="text-xs text-gray-400 uppercase font-medium mb-3">Add subscription</p>
                   <form onSubmit={handleCreateSub} className="space-y-3">
-                    <div>
-                      <label className="block text-xs text-gray-500 mb-1">Type</label>
-                      <select
-                        value={subForm.type}
-                        onChange={(e) => setSubForm({ ...subForm, type: e.target.value as SubscriptionType })}
-                        className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pink-300"
-                      >
-                        <option value="monthly">Monthly (1 month)</option>
-                        <option value="yearly">Yearly (1 year)</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-500 mb-1">Start date</label>
-                      <input
-                        type="date"
-                        required
-                        value={subForm.startDate}
-                        onChange={(e) => setSubForm({ ...subForm, startDate: e.target.value })}
-                        className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pink-300"
-                      />
-                    </div>
+                    <select
+                      value={subForm.type}
+                      onChange={(e) => setSubForm({ ...subForm, type: e.target.value as SubscriptionType })}
+                      className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pink-300"
+                    >
+                      <option value="monthly">Monthly (1 month)</option>
+                      <option value="yearly">Yearly (1 year)</option>
+                    </select>
+                    <input
+                      type="date" required
+                      value={subForm.startDate}
+                      onChange={(e) => setSubForm({ ...subForm, startDate: e.target.value })}
+                      className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pink-300"
+                    />
                     {subError && <p className="text-red-400 text-xs">{subError}</p>}
                     {subSuccess && <p className="text-green-500 text-xs">{subSuccess}</p>}
-                    <button
-                      type="submit"
-                      disabled={subSaving}
-                      className="w-full py-2 bg-gradient-to-r from-pink-400 to-pink-500 text-white rounded-xl text-sm font-medium hover:opacity-90 transition disabled:opacity-50"
-                    >
+                    <button type="submit" disabled={subSaving} className="w-full py-2 bg-gradient-to-r from-pink-400 to-pink-500 text-white rounded-xl text-sm font-medium hover:opacity-90 transition disabled:opacity-50">
                       {subSaving ? 'Creating...' : 'Create subscription'}
                     </button>
                   </form>
@@ -346,10 +276,9 @@ export default function AdminPage() {
 
                 <button
                   onClick={() => handleDelete(selectedClient.id, selectedClient.name)}
-                  disabled={deletingId === selectedClient.id}
-                  className="w-full py-2 bg-red-100 text-red-600 rounded-xl text-sm font-medium hover:bg-red-200 transition disabled:opacity-50"
+                  className="w-full py-2 bg-red-100 text-red-600 rounded-xl text-sm font-medium hover:bg-red-200 transition"
                 >
-                  {deletingId === selectedClient.id ? 'Deleting...' : 'Delete client'}
+                  Delete client
                 </button>
               </div>
             )}
@@ -362,77 +291,33 @@ export default function AdminPage() {
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-5">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-gray-800">Create new user</h2>
-              <button
-                onClick={() => setShowCreateUser(false)}
-                className="text-gray-400 hover:text-gray-600 text-xl leading-none"
-              >
-                x
-              </button>
+              <button onClick={() => setShowCreateUser(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">x</button>
             </div>
-
             <form onSubmit={handleCreateUser} className="space-y-4">
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Full name</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ivan Ivanov"
-                  value={userForm.name}
-                  onChange={(e) => setUserForm({ ...userForm, name: e.target.value })}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-pink-300"
-                />
+                <input type="text" required placeholder="Ivan Ivanov" value={userForm.name} onChange={(e) => setUserForm({ ...userForm, name: e.target.value })} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-pink-300" />
               </div>
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Email</label>
-                <input
-                  type="email"
-                  required
-                  placeholder="user@example.com"
-                  value={userForm.email}
-                  onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-pink-300"
-                />
+                <input type="email" required placeholder="user@example.com" value={userForm.email} onChange={(e) => setUserForm({ ...userForm, email: e.target.value })} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-pink-300" />
               </div>
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Password</label>
-                <input
-                  type="password"
-                  required
-                  minLength={6}
-                  placeholder="min 6 characters"
-                  value={userForm.password}
-                  onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-pink-300"
-                />
+                <input type="password" required minLength={8} placeholder="min 8 chars, uppercase + digit" value={userForm.password} onChange={(e) => setUserForm({ ...userForm, password: e.target.value })} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-pink-300" />
               </div>
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Role</label>
-                <select
-                  value={userForm.role}
-                  onChange={(e) => setUserForm({ ...userForm, role: e.target.value as 'client' | 'admin' })}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-pink-300"
-                >
+                <select value={userForm.role} onChange={(e) => setUserForm({ ...userForm, role: e.target.value as 'client' | 'admin' })} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-pink-300">
                   <option value="client">Client</option>
                   <option value="admin">Admin</option>
                 </select>
               </div>
-
               {userError && <p className="text-red-400 text-sm">{userError}</p>}
               {userSuccess && <p className="text-green-500 text-sm">{userSuccess}</p>}
-
               <div className="flex gap-3 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setShowCreateUser(false)}
-                  className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm hover:bg-gray-50 transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={userSaving}
-                  className="flex-1 py-2.5 bg-gradient-to-r from-pink-400 to-pink-500 text-white rounded-xl text-sm font-medium hover:opacity-90 transition disabled:opacity-50"
-                >
+                <button type="button" onClick={() => setShowCreateUser(false)} className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm hover:bg-gray-50 transition">Cancel</button>
+                <button type="submit" disabled={userSaving} className="flex-1 py-2.5 bg-gradient-to-r from-pink-400 to-pink-500 text-white rounded-xl text-sm font-medium hover:opacity-90 transition disabled:opacity-50">
                   {userSaving ? 'Creating...' : 'Create'}
                 </button>
               </div>
@@ -442,4 +327,6 @@ export default function AdminPage() {
       )}
     </div>
   );
-}
+});
+
+export default AdminPage;
