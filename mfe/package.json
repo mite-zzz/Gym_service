@@ -1,0 +1,13 @@
+{
+  "name": "gym-mfe",
+  "private": true,
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "start": "concurrently \"npm run start --workspace=packages/host\" \"npm run start --workspace=packages/client-app\" \"npm run start --workspace=packages/admin-app\"",
+    "build": "npm run build --workspace=packages/host && npm run build --workspace=packages/client-app && npm run build --workspace=packages/admin-app",
+    "install:all": "npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  }
+}
